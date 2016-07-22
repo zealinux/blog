@@ -1,0 +1,11 @@
+#+TITLE: Mike-King's Blog 
+#+DESCRIPTION: 如何使用 Nanoc 和 Orgmode 构建自己的博客系统 
+#+AUTHOR: Mike King
+#+DATE: 2016-02-28
+#+KEYWORDS: Nanoc, Orgmode
+
+* [[abc/][Nanoc + Orgmode generate a blog]]
+  SCHEDULED: <2016-03-05 Sat>
+
+* Rails 5 in Nitrous.io 
+  

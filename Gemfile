@@ -1,6 +1,6 @@
 source 'https://rubygems.org'
 
-gem 'nanoc', '~> 4.1', '>= 4.1.1'
+gem 'nanoc', '~> 4.2', '>= 4.2.3'
 gem 'adsf'
 gem 'rubocop'
 #gem 'systemu'
@@ -8,3 +8,4 @@ gem 'org-ruby'
 gem 'guard-nanoc'
 gem 'terminal-notifier'
 gem 'terminal-notifier-guard'
+gem 'nokogiri', '~> 1.6', '>= 1.6.8'

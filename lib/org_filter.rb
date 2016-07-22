@@ -7,7 +7,8 @@ module Nanoc::Filters
     type :text
 
     def run(content, params = {})
-      ::Orgmode::Parser.new(content).to_html
+      org_content = content + '#+OPTIONS: author:t H:2 num:t todo:t'
+      ::Orgmode::Parser.new(org_content).to_html
     end
   end
 end

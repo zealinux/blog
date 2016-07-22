@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8"/>
+    <title>Document</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+
+    <link href="//cdn.bootcss.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
+    <link href="//cdn.bootcss.com/font-awesome/4.5.0/css/font-awesome.css" rel="stylesheet">
+    <link href="/abc.css" rel="stylesheet"/>
+  </head>
+
+  <body data-spy="scroll" data-target=".notes-sidebar">
+    <header>
+      <div class="notes-header">
+        <div class="container">
+          <div class="row">
+            <div class="col-md-9">
+              <h1>
+                <%= @item[:title] %>
+              </h1>
+            </div>
+            <div class="col-md-3">
+              <a href="/">
+                <img alt="" src="http://placehold.it/150x120?text=INDEX" />
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="wrap">
+      <div class="container notes-content">
+        <div class="row">
+          <article class="col-md-9"><%= yield %></article>
+          <aside class="col-md-3 sidebar-toc">
+            {{ TOC }}
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="container">Contributes & License</div>
+    </footer>
+    <script src="//cdn.bootcss.com/jquery/2.2.1/jquery.min.js"></script>
+    <script src="//cdn.bootcss.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+    <script type="text/javascript" charset="utf-8">
+     $('#notes-sidebar').affix({
+       offset: {
+         top: $('#notes-sidebar').offset().top,
+         bottom: ($('footer').outerHeight(true))
+       }
+     });
+    </script>
+  </body>
+</html>

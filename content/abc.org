@@ -1,0 +1,56 @@
+#+TITLE: 使用 Nanoc 和 Orgmode 构建自己的博客系统  
+#+DESCRIPTION: 我是副标题，没有看到我 
+#+KEYWORDS: Nanoc, Orgmode
+
+*  开始（一个文档只能有一个第一层目录 =H1= ）
+* 参考帮助 
+- [[http://v3.bootcss.com/css/][全局 CSS 样式 · Bootstrap v3 中文文档]]
+  - 栅格系统中 *container*
+- [[http://nanoc.ws/][Nanoc: a static-site generator written in Ruby » home]]
+- [[http://orgmode.org/org.html][The Org Manual]]
+- [[http://elvestar.com/notes/org-mode/][Emacs Org Mode - elvestar]]
+- [[https://codefalling.com/2015/10/25/use-orgmode-with-hexo/#comments][在 Hexo 中使用 Orgmode - M-x codefalling]]
+-
+* Remember 
+- C-c C-e # Insert template with export options
+- [[https://emacsclub.github.io/html/org_tutorial.html][Org-mode Tutorial / Cheat Sheet]]
+* TODO steps [4/6]
+- [X] 真正的标题移到 =@item[:title]=
+- [X] 层级序号
+- [X] FIX *TODO* miss
+- [X] 图片
+- [ ] 上传七牛
+- [ ] jQuery lib
+ 
+* 这是第一层目录 
+** 这是第二层目录
+#+BEGIN_SRC ruby
+3.time do 
+  puts 'Hello world'
+end
+#+END_SRC
+
+
+*** 这是第三层目录 
+: echo "ddd"
+** image
+#+ATTR_HTML: width="50"
+[[/assets/images/abc_我的第一张图片.png]]
+
+** tables
+| sabc | ccc    | 啊并    | dddd | bb  |
+|------+--------+---------+------+-----|
+| hild | dddd   | dccdf   | d    |     |
+| dddd | daaaas | sxvb    | vvv  |     |
+| vvv  | vvvv   | vvvvvvv |      | ddf |
+
+* TOC - 目录
+
+** 使用两个 *Bootstrap* 插件
+- affix
+- scroll-spy
+*  博客规范 （blog spec)
+*** 目录从第二层开始（第一层是 =TITLE= ） 
+*** =TITLE= 十个字以内
+*** 图片大小
+[[http://zealinux.qiniudn.com/abc_test1.png]]

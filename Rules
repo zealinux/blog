@@ -1,12 +1,17 @@
 #!/usr/bin/env ruby
+# coding: utf-8
 
-compile '/**/*.html' do
-  layout '/default.*'
-end
+# compile '/**/*.html' do
+#   layout '/default.*'
+# end
 
 compile '/**/*.org' do
   filter :org2html
-  layout '/default.*'
+  # filter :org_html_filter
+  layout '/blog.*'
+  filter :correct_html
+  filter :add_toc
+  # layout '/default.*'
 end
 
 # This is an example rule that matches Markdown (.md) files, and filters them
@@ -31,3 +36,38 @@ compile '/**/*' do
 end
 
 layout '/**/*', :erb
+
+passthrough '/favicon.ico'
+passthrough '/assets/fonts/**/*'
+passthrough '/assets/images/**/*'
+
+
+# preprocess do
+#   items.each do |i|
+#     if i[:extension] == 'org'
+#        i.concat '#+OPTIONS: author:t H:2 num:t todo:t'
+#     end
+#   end
+#  end
+# preprocess do
+#   require 'nokogiri'
+#   @items.each do |item|
+#     puts item[:extension]
+#     if item[:extension] == 'org'
+#       title_regexp = /\+TITLE: (.*)\n?/
+#       item[:title] = item.raw_content.match(title_regexp)[1]
+#       puts item.attributes
+#       # html_doc = Nokogiri::HTML(item.raw_content)
+#       # item[:title] = html_doc.xpath('//article/h1[1]').text
+
+#       item[:author] = 'Mike King'
+
+#       # events = {}
+#       # event = []
+#       # event['title'] = item[:title] + '[新增]'
+#       # event.push event
+
+#       # item[:events] = events
+#     end
+#   end
+# end
