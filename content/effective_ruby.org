@@ -1,0 +1,1245 @@
+#+TITLE: 改善 Ruby 程序的 48 条建议
+
+* 让自己熟悉 Ruby
+** 理解 Ruby 中的 True
+- 除了 =false= 和 =nil= 外，其他都是真值
+- 区分 false 和 nil 的方法
+#+BEGIN_SRC ruby
+x.nil?
+false == x
+#+END_SRC
+
+** 所有对象的值都可能为 nil
+ - 下面两行等价
+#+BEGIN_SRC ruby
+person.save if person
+person.save if !person.nil?
+#+END_SRC
+** 避免使用 Ruby 中古怪的 Perl 风格语法
+#+BEGIN_SRC ruby
+  # bad
+  if message =~ /^ERROR: \s+(.+)$/; $1 end
+
+  # good use MatchData
+  if m = message.match(/^ERROR: \s+(.+)$/); m[1] end
+
+  # bad
+  $:  #=> $LOAD_PATH
+#+END_SRC
+** 留神，常量是可变的
+ - 全部冻结（集合对象及元素）
+#+BEGIN_SRC ruby
+  module Defaults
+    NETWORKS = [
+      '192.168.1.1'
+    ].map!(&:freeze).freeze
+  end
+
+#+END_SRC
+** 留意运行时警告
+ - ruby -w
+ - $VERBOSE
+ - t.warning = true  # in Rakefile
+
+* 类、对象和模块
+** 了解 Ruby 如何构建继承体系
+*** 对象、类、模块
+#+BEGIN_QUOTE
+ - 对象是变量的容器
+   这些对象被称为 *实例变量* 代表这对象的状态
+   对象有一个特殊的内部变量链接唯一的一个类 （TODO）
+ 
+ - 类是方法和常量的容器
+   *实例方法* 代表类所有对象的行为
+   类也是对象，则类也是类变量的容器
+   类是一种器变量称为类变量，其方法称为类方法的对象。
+
+ - 模块和类相似，除了不能实例化以及更严格的语法。
+   可以将模块 ~include~ 进类，实现多重继承的效果。
+
+ - 单件类（singleton）是继承体系中的一个匿名且不可见的类。
+  （有时也称 eigenclasses/metaclasses）
+   提供了存储类方法和从 modules 中引入的方法的空间
+   与常规类不同，它们是动态创建的，不能被实例化。
+   单件类不同于常规类奉献精神 - 所有对象都可以使用方法，单件类只服务一个对象。
+   类方法是作为单件类的实例方法存储的。
+
+ - 接收者是调用方法的对象。
+   ~foo.name~ 接收者是 foo，当 name 方法执行时，self 变量被设置在 foo 上。
+   方法省略时，隐式将 ~self~ 设置成当前上下文
+#+END_QUOTE
+
+*** 继承体系
+ - Foo/Object/Kernel/BasicObject
+ - 只使用 ~superclass~ 时会省略 module 比如 kernel
+
+*** 引入模块时发生的事情
+ - 创建一个单件类并插入类继承体系中。（共享实例方法和常量）
+ - include 后插入到当前类的上方，查找方法时（后进先出 LIFO）优先级仅次于当前类
+
+*** 查找方法 
+ 1. 找到接收者的类
+ 2. 查找该类中存储的实例方法列表，找到就停止并执行代码
+ 3. 顺着继承体系找到超类（包括超类是单件类），并重复第 2 步
+ 4. 重复 2，3 直到抵达体系的根（*BasicObject*）
+ 5. 找不到方法，就重头开始找方法 ~method_missing~
+
+*** 有用的方法
+ - singleton_class.instance_method(false)
+   - #<Class:Foo>
+ - ancestors
+ - included_modules
+
+** 了解 super 的不同行为
+ - 三种 *super* (关键字)行为
+#+BEGIN_SRC ruby
+  def foo(x, y)
+    super(1,2)
+    super     #=> super(x, y)
+    super()   #无参数
+  end
+#+END_SRC
+ - super 可以调用引入模块的方法
+** 初始化子类时调用 super
+ - 如要显示使用继承的定义 initialize 方法时，需要使用 super 来初始化其父类
+
+** 提防 Ruby 最棘手的解析
+*** setter 方法在调用时需要显式的接收者，否则被解析成变量赋值
+#+BEGIN_SRC ruby
+  class Counter
+    attr_accessor :counter
+
+    def initialize
+      counter =  0  # local variale assign
+      self.counter = 0  # right
+    end
+
+    def bar
+      counter + 1  # right = self.counter + 1
+    end
+  end
+
+#+END_SRC
+** 推荐使用 Struct 而非 Hash 存储结构化数据
+*** 不应该将 hash 数组通过公共接口向外暴露
+#+BEGIN_SRC ruby
+  # bad
+  class AnnualWeather
+    def initialize(file_name)
+      @readings =  []
+
+      CSV.foreach(file_name, headers: true) do |row|
+        @readings << {
+          date: Date.parse(row[2]),
+          high: row[10].to_f,
+          low: row[11].to_f
+        }
+      end
+    end
+
+    def mean
+      return 0.0 if @readings.size.zero?
+
+      total = @readings.reduce(0.0) do |sum, reading|
+        sum + (reading[:high] + reading[:low]) / 2.0
+      end
+
+      total / @readings.size.to_f
+    end
+  end
+
+  # good
+  class AnnualWeather
+    Reading = Struct.new(:date, :high, :low) do
+      def mean # struct object method
+        (high + low) / 2.0
+      end
+    end
+
+    def initialize(file_name)
+      @readings =  []
+
+      CSV.foreach(file_name, headers: true) do |row|
+        @readings << Reading.new(Date.parse(row[2]), row[10].to_f, row[11].to_f)
+      end
+    end
+
+    def mean
+      return 0.0 if @readings.size.zero?
+
+      total = @readings.reduce(0.0) do |sum, reading|
+        sum + Reading.new(reading.high, reading.low).mean  # awsome
+      end
+
+      total / @readings.size.to_f
+    end
+  end
+
+#+END_SRC
+ - 结构化数据时，如果创建一个新类不合适，推荐使用 Struct 而非 Hash
+** 通过在模块中嵌入代码来创建命名空间
+*** module 可以做命令空间，以便方法隔离
+*** module 词法作用域
+#+BEGIN_SRC ruby
+  module Foo
+    KEY = 'passoword'
+
+    class Bar
+      def initialize(key = KEY)  # right
+      end
+    end
+  end
+
+  module Foo
+    KEY = 'passoword'
+  end # 词法作用域关闭
+
+  class Bar
+    def initialize(key = KEY)  # Nameerror, use Foo::KEY
+    end
+  end
+#+END_SRC
+
+#+BEGIN_SRC ruby
+Foo::Bar
+::Bar  # 顶级空间
+#+END_SRC
+
+#+BEGIN_QUOTE
+模块名（常量）可以看作全局常量，这时所有顶级常量都被存在 *Object* 类中。
+所以查找方式：
+ - 当前词法作用域
+ - 继承体系
+#+END_QUOTE
+** 理解等价的不同用法
+*** 四种等价比较
+|--------+---------------+--------------------------------+------------+------------------------|
+|        | 含义          | 应用场景                       | 举例       | 附注                   |
+|--------+---------------+--------------------------------+------------+------------------------|
+| ==     | 值相等        |                                | ~1 == 1.0~ | 类型隐式转换           |
+| equal? | 同一对象      | 检查两个对象是否指向内存同一块 |            | 除了数字，其他都是引用 |
+| eql?   | Hash 的键比较 | Hash 类中比较对象的 Key        |            |                        |
+| ===    | case 等价     | case when 条件中隐式调用       |            |                        |
+|--------+---------------+--------------------------------+------------+------------------------|
+
+*** eql? 示例
+
+#+BEGIN_SRC ruby
+  class Color
+    attr_reader :name
+
+    def initialize(name)
+      @name = name
+    end
+
+    def hash
+      name.hash
+    end
+
+    def eql?(other)
+      name.eql?(other.name)
+    end
+  end
+
+  a = Color.new('pink')
+  b = Color.new('pink')
+
+  {a => 'like', b => 'love' }  
+  #=> {#<Color:0x007fa74586a288 @name="pink">=>"love"}
+#+END_SRC
+
+*** === 示例
+ - case 之后的表达式总是出现在 ~===~ 的右侧
+#+BEGIN_SRC ruby
+  case command
+  when 'start' then start
+  when Numeric then timer(command)
+  end
+
+  # ===
+  if 'start' === command then start
+  elsif Numeric === command then timer(command)
+  end
+#+END_SRC
+
+***  Regexp#== vs String#===
+#+BEGIN_SRC ruby
+/er/ === 'Tyler'
+#=> true
+
+'Tyler' == /er/
+#=> false
+#+END_SRC
+
+*** is_a? vs ===
+#+BEGIN_SRC ruby
+[1, 2, 3].is_a?(Array)
+
+Array === [1, 2, 3]
+#+END_SRC
+
+** 通过"<=>"操作符实现比较和比较模块
+   - hash ?
+#+BEGIN_SRC ruby
+  # coding: utf-8
+  class Version
+    include Comparable  # >,< etc.
+    attr_reader :major, :minor, :patch
+
+    def initialize(version)
+      @major, @minor, @patch = version.split('.').map(&:to_i)
+    end
+
+    def <=>(other)
+      return nil unless other.is_a?(Version)
+
+      [major <=> other.major,
+       minor <=> other.minor,
+       patch <=> other.patch
+      ].detect { |n| !n.zero? } || 0
+    end
+
+    # 定义 hash 方法
+    alias_method :eql?, :==
+
+    def hash
+      [major, minor, patch].hash
+    end
+  end
+
+  vs = %w( 1.0.0 1.11.1 1.9.0).map {|v| Version.new(v)}
+  vs.sort
+#+END_SRC
+
+** 通过 protected 方法共享私有状态
+*** protected 方法共享私有状态（相关类 - 同一类或超类）
+#+BEGIN_SRC ruby
+  # bad
+  class Widget
+    def overlapping?(other)
+      x1, y1 = @screen_x, @screen_y
+      x2, y2 = other.instance_eval { [@screen_x, @screen_y] }
+    end
+  end
+
+  # good
+  class Widget
+    def overlapping?(other)
+      x1, y1 = screen_coordinates
+      x2, y2 = other.screen_coordinates
+    end
+
+    protected
+    def screen_coordinates
+      [@screen_x, @screen_y]
+    end
+  end
+#+END_SRC
+** 优先使用实例变量而非类变量
+ - 实例变量 - 子类独一份
+ - 类变量 - 子类共一份
+#+BEGIN_SRC ruby
+  # coding: utf-8
+  # error
+  class Singleton
+    private_class_method :new, :dup, :clone
+
+    def self.instance
+      @@single ||= new  # 超类的类变量被所有子类共享
+    end
+  end
+
+  class Configuration < Singleton
+  end
+
+  class Database < Singleton
+  end
+
+  Configuration.instance  #=> #<Configuration>
+  Database.instance  #=> #<Configuration>
+
+  # right
+  def self.instance
+    @single ||= new
+  end
+#+END_SRC
+
+#+BEGIN_QUOTE
+类方法实际上就是类对象的实例方法
+#+END_QUOTE
+
+*** 线程安全单键模式
+#+BEGIN_SRC ruby
+  require 'singleton'
+
+  def Configuration
+    include Singleton
+  end
+#+END_SRC
+
+* 集合
+ - Array, Hash, Set
+** 在改变作为参数的集合之前复制它们
+#+BEGIN_QUOTE
+集合类实际存储对象的引用，除了 Fixnum
+方法参数也类似
+#+END_QUOTE
+
+ - delete vs reject
+
+*** dup vs clone
+#+BEGIN_QUOTE
+clone 会保留原始对象的两个附加特性（freeze, 存在单件类）
+#+END_QUOTE
+*** 拷贝
+|        | 类型   | 缺点                                 | 说明             |
+|--------+--------+--------------------------------------+------------------|
+| dup    | 浅拷贝 |                                      | 只复制了容器本身 |
+| clone  |        |                                      |                  |
+| Mashal | 深拷贝 | 消耗内存/有些类不能序列化（IO/File） | 包括了其中的元素 |
+
+ - 可以重写 ~initialize_copy~ 控制赋值过程的深度
+
+** 使用 Array 方法将 nil 及标量对象转换成数组
+#+BEGIN_SRC ruby
+Array(nil)  #=> []
+Array({ a: 1 })  #=> [[:a, 1]] 反转用 Hash[]
+#+END_SRC
+
+** 考虑使用集合高效检查元素的包含性
+ Ruby 自带两套库：
+ - 核心库已经预先加载
+ - 标准库，比如：Set
+
+*** Set 使用
+
+#+BEGIN_SRC ruby
+  # bad
+  class Role
+    def initialize(name, permissions)
+      @name, @permissions = name, permissions  # bad
+      # @permissions = Hash[permissions.map { |p| [p, true] }]  # litter better
+    end
+
+    def can?(permission)
+      @permissions.include?(permission)  # Array O(n); Hash O(logn)
+    end
+  end
+
+  # good
+  require 'set'
+
+  class Role
+    def initialize(name, permissions)
+      @name, @permissions = name, Set.new(permissions)  # O(logn)
+    end
+  end
+#+END_SRC
+
+#+BEGIN_QUOTE
+*Set* 是无序的容器，若要有序的使用 *SortedSet*
+#+END_QUOTE
+** 了解如何通过 reduce 方法折叠集合
+*** reduce 函数由三部分组成：
+ - 枚举的对象是接收者（比如引入 *Enumberable* ）
+ - 每个元素调用一次，每次都有返回值，这个返回值代表最终生成的数据结构
+ - 初始对象（累加器），一次块的调用都会接受当前累加器的值并返回新的累加器值
+   - 参数是累加器的初始值（枚举类型为空，则返回这个值）
+
+***  应用
+#+BEGIN_SRC ruby
+  def sum(enum)
+    enum.reduce(0) do |accumulator, element| 
+      accumulator + element
+    end
+  end
+
+  def sum(enum)
+    enum.reduce(0, :+)
+    # enum.reduce(0, &:+)
+  end
+
+  Hash[array.map { |x| [x, true] }]
+
+  array.reduce({}) do |hash, element|
+    hash.update(element => true)
+    # hash[element] = true
+    # hash
+  end
+
+  # bad
+  users.select { |u| u.age >= 21 }.map(&:name)
+
+  # good
+  users.reduce([]) do |names, user|
+    names << user.name if user.age >= 21
+    names
+  end
+#+END_SRC
+** 考虑使用默认哈希值
+#+BEGIN_SRC ruby
+  def frequency(array)
+    # bad
+    array.reduce({}) do |hash, element|
+      hash[element] ||= 0
+      hash[element] += 1
+      hash
+    end
+
+    # good
+    # 0 默认值是没有找到才用到
+    array.reduce(Hash.new(0)) do |hash, element|
+      hash[element] += 1
+      hash
+    end
+  end
+#+END_SRC
+
+*** Hash.new
+#+BEGIN_SRC ruby
+  h = Hash.new(42)
+  h[:miss]
+  h.keys #=> []
+
+  h[:miss] += 1
+  h.keys #=> [:miss]
+
+  #---------------
+  h = Hash.new([])
+  h[:miss]
+  h[:miss] << 'hey'  # 默认值改变
+  h.keys #=> []
+
+  h[:miss] #=> ['key']
+  h[:missd] #=> ['key']
+
+  h.default #=> ['key']
+
+  #---------------
+  ## << 两个键共享同一个默认数组
+  h = Hash.new([])
+  h[:week] = h[:week] << 'Monday'
+  h[:months] = h[:months] << 'January'
+  h.keys  #=> ['Monday', 'January']
+
+  h[:week] #=> ['Monday', 'January']
+  h.default #=> ['Monday', 'January'] 
+
+  #right
+  h = Hash.new { [] }
+
+  # better
+  h = Hash.new { |hash, key| hash[key] = [] }
+  h[:week] << 'Monday'
+  h[:holidays]  #=> []
+  h.keys  #=> [:week, :holidays]
+#+END_SRC
+
+Hash.new { [] }  # 当需要默认值时这个会被调用，并友好得返回一个新创建的数组
+
+*** 使用 ~has_key?~ 来检测 hash 包含某个键
+
+*** 使用 fetch
+ - h.fetch(:week) - 当获取不存在的键，抛出异常(KeyError)
+ - h.fetch(:week, []) - 当获取不存在的键，用第二个参数代替
+ 
+** 对集合优先使用委托而非继承
+ - 委托 - 有一个（has a)
+ - 继承 - 是一个（is a）
+ 
+*** 委托示例
+#+BEGIN_SRC ruby
+  require 'forwardable'
+
+  class RaisingHash
+    extend Forwardable
+    include Enumerable
+
+    def_delegators(:@hash, :[], :[]=, :delete, :each,
+                   :keys, :values, :length,
+                   :empty?, :has_key?)
+
+    # Forward self.earase! to @hash.delete
+    def_delegator(:@hash, :delete, :erase!)
+  end
+#+END_SRC
+
+ - default_proc 方法是传给 Hash::new 的块
+* 异常
+** 使用定制的异常而不是抛出字符串
+*** 创建新的异常类
+ - 必须继承 StandardError (rescue 的默认行为)
+ - 异常类名称以"Error"结尾
+ 
+*** 编写异常类
+#+BEGIN_SRC ruby
+  class CoffeeTooWeakError < StandardError
+  end
+
+  raise CoffeeTooWeakError
+  raise CoffeeTooWeakError, "coffee to water ratio too low"
+
+  class TemperatureError < StandardError
+    attr_reader :temperature
+
+    def initialize(temperature)
+      @temperature = temperature
+      super("invalid temperature: #@temperature")
+    end
+  end
+
+  raise TemperatureError(190)
+#+END_SRC  
+
+ - raise 既能接受异常类对象，也能接受异常类（其实是隐式调用该类 new）
+#+RESULTS:
+** 捕获可能的最具体的异常
+#+BEGIN_SRC ruby
+  begin
+    task.perform
+  rescue NetworkConnectionError => e
+    # Retry logic...
+  rescue InvalidRecordError => e
+    # Send record to support staff...
+  rescue => e
+    service.record(e)
+    railse
+  ensure
+  end
+#+END_SRC
+
+** 通过块和 ensure 管理资源
+#+BEGIN_SRC ruby
+  File.open(file_name, 'w') do | file|
+  end
+
+  class Lock
+    def self.acquire
+      lock = new  # Initialize the resource
+      lock.exclusive_lock!
+
+      if block_given?
+        yield lock  # Give it to the block
+      else
+        lock
+      end
+    ensure
+      if block_given?
+        lock.unlock if lock
+      end
+    end
+  end
+
+  Lock.acquire do |lock|
+    # Raising an exception here is Okay.
+  end
+  Lock.acquire  # Won't automatically unlock
+#+END_SRC
+** 通过临近的 end 退出 ensure 语句
+ - 不要在 ensure 里 return
+#+BEGIN_SRC ruby
+  def a
+    return 2
+  ensure
+    return 3
+  end
+  a  #=> 3
+
+  def a
+    return 2
+  ensure
+    3
+  end
+  a  #=> 3
+#+END_SRC
+
+** 限制 retry 次数，改变重试频率并记录异常信息
+#+BEGIN_SRC ruby
+  retries = 0
+
+  begin
+    service.update record
+  rescue VendorDeadlockError => e
+    raise  if retries >= 3
+    retries += 1
+    logger.warn("API failure: #{e}, retrying...")
+    sleep(5**retries)
+    retry
+  end
+#+END_SRC
+** throw 比 raise 更适合用来跳出作用域
+ - catch throw 是安全版的 goto
+ - 可以跳出多重迭代
+
+#+BEGIN_SRC ruby
+  # bad
+  begin
+    @characters.each do |character|
+      @colors.each do |colors|
+        if players.valid?(character, color)
+          raise StopIteration
+        end
+      end
+    end
+  rescue StopIteration
+    #...
+  end
+
+  # good
+  match = catch(:jump) do
+    @characters.each do |character|
+      @colors.each do |colors|
+        if players.valid?(character, color)
+          throw :jump, [character, color]
+        end
+      end
+    end
+  end
+#+END_SRC
+* 元编程
+** 熟悉 Ruby 模块和类的钩子方法
+六种钩子方法
+*** base hooks
+|-----------+---------+---+------------------+---|
+| hooks     | trigger |   | other method     |   |
+|-----------+---------+---+------------------+---|
+| included  | include |   | append_features  |   |
+| extended  | extend  |   | extend_object    |   |
+| prepended | prepend |   | prepend_features |   |
+| inherited | <       |   |                  |   |
+|-----------+---------+---+------------------+---|
+*** other hooks 
+ - method_added method_removed method_undefined
+ - singleton_xxx
+*** other methods
+ - 不是钩子方法
+ - 钩子调用之前的具体执行
+
+** 在类的钩子方法中执行 super 方法
+ - 在类钩子方法中适时执行 super
+
+** 推荐使用 define_method 而非 method_missing
+ - define_method 优于使用 method_missing
+#+BEGIN_SRC ruby
+  # good
+  class AuditDecorator
+    def initialize(object)
+      @object = object
+      @logger = Logger.new($stdout)
+
+      @object.public_methods.each do |name|
+        define_singleton_method(name) do |*args, &block|
+          @logger.info("calling '#{name}' on #{@object.inspect}")
+          @object.send(name, *args, &block)
+        end
+      end
+    end
+  end
+#+END_SRC
+** 了解不同类型的 eval 间的差异
+#+BEGIN_QUOTE
+xxx_eval 方法名字透露：他们的功能，被使用的上下文
+#+END_QUOTE
+
+*** eval
+ - 只支持字符串参数，
+ - 无法执行大段代码，且不安全
+ - 如果没有指定上下文，则在当前的 eval 被使用的上下文中执行。
+*** vs
+ - 附加比较 ~instance_exec~ vs ~instance_eval~
+ - [[http://blog.bigbinary.com/2013/03/12/understanding-instance-exec-in-ruby.html][Understanding instance exec in ruby | BigBinary Blog]]
+   - instance_eval 有限制，不支持参数
+   - instance_exec 支持参数
+
+#+BEGIN_SRC ruby
+class Person
+  code = proc { |greetings| puts greetings; puts self }
+
+  define_method :name do
+    self.class.instance_exec 'Good morning', &code
+  end
+end
+
+class Developer < Person
+end
+
+Person.new.name #=> Good morning Person
+Developer.new.name #=> Good morning Developer
+#+END_SRC
+
+#+BEGIN_SRC ruby
+  class Counter
+    DEFAULT = 0
+    attr_reader :counter
+
+    def initialize(start = DEFAULT)
+      @counter = start
+    end
+
+    def inc
+      @counter += 1
+    end
+  end
+
+  module Reset
+    def self.reset_var(object, name)
+      object.instance_exec("@#{name}".to_sym) do |var|
+        const = self.class.const_get(:DEFAULT)
+        instance_variable_set var, const
+      end
+    end
+  end
+
+  c = Counter.new(10)
+  Reset.reset_var(c, "counter")  #=> #<Counter:0x007fb63a9a4d20 @counter=10>
+  Reset.reset_var(c, "x;") #=> NameError: `@x;' is not allowed as an instance variable name
+#+END_SRC
+
+** 慎用猴子补丁
+*** 使用 refinement ( refine & using)
+ - monkey patch 全局可见
+ - refinement 当前语法作用域才可见
+#+BEGIN_SRC ruby
+  module OnlySpace
+    refine(String) do
+      def only_space?
+        true
+      end
+    end
+  end
+
+  class Person
+    using(OnlySpace)
+
+    def initialize(name)
+      @name = name
+    end
+
+    def valid?
+      !@name.only_space?
+    end
+
+    def display(io = $stdout)
+      io.puts(@name)
+      # puts 中无法调用 only_space?方法
+    end
+  end
+#+END_SRC
+** 使用别名链执行被修改的方法
+#+BEGIN_SRC ruby
+  module LogMethod
+    def unlog_method(method)
+      orig = "#{method}_without_logging".to_sym
+
+      # Make sure log_method was called first
+      if !instance_methods.include?(orig)
+        raise(NameError, "wass #{orig} already removed?")
+      end
+
+      # Remove the logging version
+      remove_method(method)
+
+      # Put the method back to its original name.
+      alias_method method, orig
+
+      # Remove the name created by log_method
+      remove_method orig
+    end
+  end
+
+#+END_SRC
+** 支持多种 Proc 参数数量
+ - 类型强弱，参数不匹配时处理，使用 ~lambda?~ 区分
+ - 弱类型参数，不够 nil 凑，多余就舍弃
+ 
+|--------+------+------|
+|        | 类型 | 附录 |
+|--------+------+------|
+| Proc   | 弱   |      |
+| Lambda | 强   |      |
+|--------+------+------|
+
+*** arity & ~
+#+BEGIN_SRC ruby
+  func = -> (x, y = 1) { x + y }
+  func.arity  #=> -2 一个参数必须，一个可选
+  func.arity  #=> 1 几个参数必须
+
+#+END_SRC
+
+** 使用模块前置时请谨慎思考
+#+BEGIN_SRC ruby
+  module A; end
+  module B; end
+  class C
+    include A
+    include B
+  end
+  # include 从上到下
+  C.ancestors  #=> [C, B, A, Object, Kernel, BasicObject]
+
+  class D
+    prepend A
+    prepend B
+  end
+  # prepend 从下到上
+  D.ancestors  #[B, A, D, Object, Kernel, BasicObject]
+#+END_SRC
+
+* 测试
+** 熟悉单元测试工具 MiniTest
+*** 写测试的规范
+ - 比如 Version 类定义在 version.rb 文件中则测试文件命名为 test_version.rb
+ - Ruby on Rails 推荐使用 *_test* 后缀
+ - 类为 Versiontest < MiniTest::Unit::TestCase
+ - 测试用例为 *test_* 作为前缀
+ - 抽取共通的逻辑放进帮助方法中(setup/teardown)
+*** 示例
+#+BEGIN_SRC ruby
+  require 'minitest/autorun'
+  # 加载三个组件
+  # - 单元测试 unit
+  # - 实例化测试 spec
+  # - Mock
+
+  class VersionTest < MiniTest::Unit::TestCase
+    def test_major_number
+      v = Version.new('2.1.3')
+      assert(v.major == 2, "major shoud be 2")
+      # assert_equal(2, v.major, "major")
+    end
+  end
+
+#+END_SRC
+*** 断言
+ - assert
+ - MiniTest::Assertions
+   - assert_equal
+   - refute_equal
+*** minitest in Ruby on Rails 
+- in Rakefile
+#+BEGIN_SRC ruby
+  require 'rake/testtask'
+
+  Rake::TestTask.new do |t|
+    t.test_files = FileList['test/*_test.rb']
+    t.warning = true
+  end
+
+#+END_SRC
+** 熟悉 MiniTest 的需求测试
+#+BEGIN_QUOTE
+需求说明测试也叫行为规范测试
+#+END_QUOTE
+
+- 使用 describe 替代类
+  - 创建继承自 Minitest::Spec 的测试类
+  - 参数（转成字符串）作为匿名类的标识
+- 测试用例使用 it 替代 def
+- 断言可以用 must/wont (Minitest::Expectations)
+- before/after 替代单元测试中的 setup/teardown
+
+#+BEGIN_SRC ruby
+  require 'minitest/autorun'
+
+  describe(Version) do
+    describe 'when parsing' do
+      before do
+        @version = Version.new('10.2.1')
+      end
+
+      it 'creates three integers' do
+        @version.major.must_equal 10
+        @version.minor.must_equal 2
+        @version.path.must_equal 1
+      end
+    end
+
+    describe 'when comparing' do
+      before do
+        @v1 = Version.new('2.1.1')
+        @v2 = Version.new('2.3.0')
+      end
+
+      it 'orders orrectly' do
+        @v1.wont_equal @v2
+        @v1.must_be(:<, @v2)
+      end
+    end
+  end
+
+#+END_SRC
+
+** 使用 Mock 模拟特定对象
+ - 把测试与外界不确定性的因素分离开了
+ - verify 会验证所有期望方法被调用过
+ - 更强的 Mock 可以选用 Mocha（测试完成后所有 Mock 引入的改变都被撤销）
+ - 常用于项目之外的代码（gem 以及核心库等）
+ 
+#+BEGIN_SRC ruby
+  # coding: utf-8
+  require 'uri'
+
+  class Monitor
+    def initialize(server)
+      @server = server
+    end
+
+    def alive?
+      echo = Time.now.to_f.to_s
+      response = get(echo)
+      response.success? && response == echo
+    end
+
+    private
+
+    def get(echo)
+      url = URI::HTTP.build(host: @server, path: "/echo/#{echo}")
+      HTTP.get(url.to_s)
+    end
+  end
+
+  def test_successful_monitor
+    monitor = Monitor.new('example.com')
+    response = Minitest::Mock.new
+
+    monitor.define_singleton_method(:get) do |echo|
+      response.expect(:success?, true)
+      # 期望的方法名，该方法的返回值
+      response.expect(:body, echo)
+      response
+    end
+
+    assert(monitor.alive?, "should be alive")
+    response.verify
+  end
+#+END_SRC
+** 力争代码被有效测试过
+*** 模糊测试 - FuzzBert
+ - FuzzBert 会创建一个进程运行模糊测试，一直运行以便检测测试时是否崩溃
+ - 随机值发生器
+#+BEGIN_SRC ruby
+  require 'fuzzbert'
+  require 'uri'
+
+  fuzz('URI::HTTP::build') do
+    data("random server names") do
+      FuzzBert::Generators.random
+    end
+
+    deploy do |data|
+      URI::HTTP.build(hosts: data, path: '/')
+    end
+  end
+#+END_SRC
+*** 属性测试 - MrProper
+ - 给 data 传入一个包含三个整数类的数组
+#+BEGIN_SRC ruby
+  require 'mrproper'
+
+  properties("Version") do
+    data([Integer, Integer, Integer])
+
+    property("new(str).to_s == str") do |data|
+      str = data.join('.')
+      assert_equal(str, Version.new(str).to_s)
+    end
+  end
+#+END_SRC
+*** 覆盖率测试 - SimpleCov
+#+BEGIN_QUOTE
+建议把自动化测试集成到持续集成工具之中
+#+END_QUOTE
+* 工具与库
+** 学会使用 Ruby 文档
+*** ri
+#+BEGIN_EXAMPLE
+ri Array
+File::open
+Time#hour
+clear
+bundler:
+bundler:README.md
+#+END_EXAMPLE
+
+ - ri --help
+
+*** RDoc
+ - RDoc::Markup
+#+BEGIN_EXAMPLE
+rdoc -f ri
+rdoc -f darkfish  # generate HTML doc
+
+#+END_EXAMPLE
+
+** 认识 IRB 的高级特性
+*** 环境配置
+ - ~/.irbrc
+ - $IRBRC
+: IRB.conf[:AUTO_INDENT] = true
+
+#+BEGIN_SRC ruby
+  module IRB::ExtendCommandBundle
+    def time(&block)
+      #...
+    end
+  end
+#+END_SRC
+***  irb 命令
+ - 特殊变量 
+#+BEGIN_QUOTE
+*_* irb 中执行过的上一个表达式结果
+irb 会新建个新会话
+#+END_QUOTE
+ - jobs/fg
+*** 可选用更强大的 *Pry*
+** 用 Bundler 管理 Gem 依赖
+ - generate gemfile
+#+BEGIN_EXAMPLE
+  gem install bundler
+
+  bundle init
+
+  # Gemfile
+  source 'https://rubygems.org'
+
+#+END_EXAMPLE
+
+ - init rubygem
+#+BEGIN_EXAMPLE
+  # init rubygem
+  bundle install 
+
+  # File
+  require 'bundle/setup'  # Gemfile 中的包
+  Bundle.require  # 其他依赖的 gem
+
+  bundle gem mp3json
+
+  # Gemfile
+  source 'http://rubygems.org'
+
+  gemspec
+
+  #======
+
+  # mp3json.gemspec
+  Gem::Specification.new do |gem|
+    gem.add_dependency('json', '1.9.1')
+  end
+#+END_EXAMPLE
+
+#+BEGIN_QUOTE
+打包 RubyGem 时不要吧 *Gemfile.lock* 放入版本控制
+#+END_QUOTE
+
+** 为 Gem 依赖设定版本上限
+#+BEGIN_QUOTE
+保证一次只更新一个 gem
+bundle update xxx
+#+END_QUOTE
+
+#+BEGIN_EXAMPLE
+# good
+gem 'money', '~> 5.1.0'
+# == gem 'money', '>= 5.1.0', '< 5.2.0'
+
+gem.add_dependency 'money', '>= 4.2.0', '< 5.2.0'
+#+END_EXAMPLE
+
+#+BEGIN_QUOTE
+应用原来需要的 B_Gem 版本，和引入一个 A_Gem 所依赖而 B_Gem 不能冲突。
+即程序需要两个不同版本的 Gem 是不允许的。（在安全范围内，版本上限越宽越好，可以扩展到下一个主要发布版本之前）
+#+END_QUOTE
+
+* 内存管理与性能
+** 熟悉 Ruby 的垃圾收集器
+ - 原理：标记-清除
+ - Ruby2.1 对象分为两类
+   - 年轻代
+   - 年老代 - 比如：常量
+ - 标记阶段：
+   - 主要标记 - 针对所有对象，开销大
+   - 次要标记 - 仅针对年轻代
+ - Ruby 内存池 - 堆 - heap
+   - 内存页 - page
+     - 槽 - slot
+     - 
+#+BEGIN_QUOTE
+当程序启动时，Ruby 会分配若干页放到堆中，
+创建新对象时，垃圾收集器会首先寻找空槽来存储该对象，
+如果没有空槽，会触发懒惰清除过程（释放一个空槽），
+如果还不能，则分配一个新的页到堆中。
+
+清除过程中，如果一个页中所有的槽全为空，则整页释放。
+#+END_QUOTE
+
+ - Ruby2.1 默认页大小 10K, 一页 408 个槽(40B)
+ - GC.stat
+** 用 Finalizer 构建资源安全网
+#+BEGIN_SRC ruby
+  ObjectSpace.define_finalizer(self, finalizer)
+#+END_SRC
+
+ - 创建闭包会导致资源不会释放
+   - 闭包还会获取 self 变量
+   - 所以，不能指向资源对象
+** 认识 Ruby 性能分析工具
+*** 选型
+ - stackprof / memory_profiler > ruby-prof > profile
+#+BEGIN_SRC sh
+  ruby -rprofile script.rb
+
+  ruby-prof --mode=memory script.rb
+#+END_SRC
+
+#+BEGIN_SRC ruby
+  require 'stackprof'
+
+  StackProfile.run out: 'profile.dump' do
+    #...
+  end
+
+  # stackprof profile.dump
+#+END_SRC
+** 避免在循环中使用对象字面量
+#+BEGIN_SRC ruby
+  # bad bad bad
+  errors.any? { |e| %w(F1 F2 F3).include?(e.code) }
+
+  # good
+  FATAL_CODES = %w(F1 F2 F3).map(&:freeze).freeze
+  errors.any? { |e| FATAL_CODES.include?(e.code) }
+
+  # > 2.1 good
+  errors.any? { |e| e.code == 'FATAL'.freeze }
+
+#+END_SRC
+** 考虑记忆化大开销计算
+#+BEGIN_SRC ruby
+  # bad
+  def shipped?(order_id)
+    file = fetch_confirmation_file
+
+    if file
+      status = parse_confirmation_file(file)
+      status[order_id] = :shipped
+    end
+  end
+
+  # good
+  def shipped?(order_id)
+    @status ||= begin
+                  file = fetch_confirmation_file
+                  file ? parse_confirmation_file(file) : {}
+                end
+    @status[order_id] = :shipped
+  end
+
+  def lookup(key)
+    @cache ||= {}
+    @cache[key] ||= begin
+                      #...
+                    end
+  end
+#+END_SRC

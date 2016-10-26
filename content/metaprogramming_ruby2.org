@@ -1,0 +1,16 @@
+#+TITLE: Rubyy 元编程 （第 2 版）
+
+* TODO 元编程基础（对象模型）
+** 
+
+* TODO 方法查找
+
+* TODO 块
+
+* TODO 作用域
+
+* TODO 综合运用
+
+* TODO Rails 中的元编程
+
+* TODO 法术

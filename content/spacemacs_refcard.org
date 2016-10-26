@@ -1,0 +1,37 @@
+#+TITLE: Spacemacs 快捷键
+#+KEYWORDS: spacemacs
+
+*  前缀含义
+以下按键都是 =SPC= 前缀 
+| SPC | M-x                          |
+| v   | 选择词法块（多次按 v可扩展） |
+| f   | file                         |
+| b   | buffer                       |
+
+* 有用的按键
+| '     | ansi-term (shell) |
+| /     | search in project |
+| s p   | ag search project |
+| f t   | nerdtree dir      |
+| s l   | counsel-imenu     |
+| n f/w | func only edit    |
+| g t   | git timemachine   |
+| w /-  | 分割窗口          |
+| t n   | line numbers      |
+| k w   | wrap-with-pair () |
+| a L   | command log mode  |
+| a n   | deft              |
+| a d   | dired current dir |
+| a r   | ranger            |
+
+* 好用的前缀键 （，逗号）
+| p | org-pomodoro   |
+| = | js-beautify[1] |
+
+* 其他 
+=C-c |=   org-table-create-or-convert-from-region
+
+
+* Footnotes
+
+[1] 需要安装必要的包 ~npm install -g js-beautify~

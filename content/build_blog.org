@@ -1,0 +1,128 @@
+#+TITLE: 使用 Nanoc 和 Orgmode 构建自己的博客系统  
+#+DESCRIPTION: 我是副标题，没有看到我 
+#+KEYWORDS: Nanoc, Orgmode
+#+DATE: <2016-08-09 Tue> 更新
+
+* 前言
+ =[[http://nanoc.ws/][Nanoc]]= 是个博客系统， =Orgmode= 是个结构化文档格式。
+  两者可以实现较为实用的博客系统。 
+
+* 为什么写博客要用 orgmode
+ - 和 =markdown= 类似是基于文本的编辑格式规范，比如对编辑中的文字进行润饰。
+ 
+ *bold*, /italic/, _underlined_, =verbatim=, ~code~, +strike-through+
+
+#+BEGIN_QUOTE
+相比 *markdown* 文件格式，*orgmode* 有以下好处：
+ - 支持文学编程（文档中的代码可以出结果）
+ - 强大的表格功能 (添加行列，计算等)
+ 
+但也有缺点：
+ - 编辑工具只能选择 *Emacs*, 没法单独推荐给朋友用
+ - 部分转换工具比较弱，比如这里的 *org-ruby*, 有时需要自己 hack 一下
+ - 对于原生的图片不能很好的限制长宽（只能用云服务剪裁）
+#+END_QUOTE
+
+* 多用快捷键
+ - =C-c g c= org-mac-grab-link
+  直接在编辑文档时获取网页生成 org 格式的链接，标题自动填充为网页的 ~TITLE~ 标签。
+
+ - =C-c '= org-edit-spacial
+   编辑代码块的时候，最长用的模式，可以在新开的 frame 打开并编辑代码。
+
+ - =M-Tab=
+   编辑元数据（型如：#+TITLE: ）时补全
+ 
+ - [[https://emacsclub.github.io/html/org_tutorial.html][Org-mode Tutorial / Cheat Sheet]]
+
+* 文学编程 - org-babel
+ #+BEGIN_SRC ruby
+ puts 'Hello world'
+ #+END_SRC
+
+ #+RESULTS:
+ : nil
+
+ - =C-c C-c= (or, org-confirm-babel-evaluate).
+** 配置支持文学编程的语言
+ - post-init-org 方法中添加（或其他启动脚本）
+ #+BEGIN_SRC elisp
+ (org-babel-do-load-languages
+      'org-babel-load-languages
+      '((emacs-lisp . t)
+        (C . t)
+        (ditaa . t)
+        (dot . t)
+        (js . t)
+        (latex . t)
+        (perl . t)
+        (python . t)
+        (ruby . t)
+        (sh . t)
+        (plantuml . t)
+        (clojure . t)
+        ))
+        (setq org-confirm-babel-evaluate nil)
+ #+END_SRC
+** orgmode 文学编程参考
+  - [[https://github.com/coldnew/coldnew-spacemacs][GitHub - coldnew/coldnew-spacemacs: My spacemacs config (based on coldnew-emacs)]]
+  - [[http://emacs-fu.blogspot.com/2011/02/executable-source-code-blocks-with-org.html][emacs-fu: executable source code blocks with org-babel]]
+  - [[http://orgmode.org/worg/org-contrib/babel/intro.html][Babel: Introduction]]
+  - [[https://org-babel.readthedocs.io/en/latest/eval/][Code blocks - Org Babel reference card]]
+ 
+* 如何使用这个定制过博客系统 
+** 安装环境
+#+BEGIN_EXAMPLE
+git clone https://github.com/zealinux/blog.git
+cd blog
+git checkout develop
+
+bundle install
+#+END_EXAMPLE
+** 写博客
+ - 进入 =blog/content/= 目录下创建 =index.org= 文件
+** 本地运行
+#+BEGIN_SRC sh
+bundle exec guard
+bundle exec nanoc view -p 3100
+tail -f crash.log
+#+END_SRC
+
+ - 这样浏览器 http://localhost:3100/ 就可以看到生成的博客
+ - 如果是其他比如 =abc.org= 则网址目录就是 =abc=
+ - 可以使用 =tmuxinator= 工具来快速进入项目
+** 部署到 =github.io= 
+ - 生成的 html 文件及资源都是在 =output= 目录
+ - 将 output 目录进行版本管理并推送到 =MyName.github.io= (MyName 换成自己的 github 名)
+ - 以后只有用网络打开 =http://MyName.github.io/= 就可以看自己的博客 
+* 使用 Nanoc 问题 
+
+  =Nanoc= 是一个用 =Ruby= 写的轻量级可定制的博客系统，自己修改并添加过滤器，就可以生成简陋的（修炼设计能力同事可以逐步美化）博客。
+  但在使用过程中也发现了很多问题，但慢慢解决了。
+ - 右侧的目录需要用到两个 *Bootstrap* 插件 =affix= 和 =scroll-spy=
+   - [[http://v3.bootcss.com/javascript/#scrollspy][JavaScript 插件 滚动监听 scrollspy.js]]
+ 
+* TODO 未完成的功能 [0/7]
+ - [ ] 自动化上传图片到 =七牛= 并粘贴正确地址
+ - [ ] Tags
+ - [ ] 博客时间
+ - [ ] 副标题
+ - [ ] INDEX 图片
+ - [ ] 抽屉功能
+ - [ ] checkbox 样式
+ - [ ] 评论功能
+ - [ ] Google 站长统计
+
+* 参考帮助 
+** 以后需要参考的链接
+ - [[https://placehold.it/][Placehold.it - Quick and simple image placeholders]]
+ - [[http://www.bootcdn.cn/][Bootstrap 中文网开源项目免费 CDN 服务]]
+
+** 构建博客时参考帮助
+ - [[http://nanoc.ws/][Nanoc: a static-site generator written in Ruby]]
+ - [[http://orgmode.org/org.html][The Org Manual]]
+ - [[https://gist.github.com/hoeltgman/3825415][Org-mode Syntax Cheat sheet · GitHub]]
+ - [[https://github.com/lifepillar/nanoc4-template][GitHub - lifepillar/nanoc4-template]]
+ - [[https://github.com/wallyqs/org-ruby][GitHub - wallyqs/org-ruby: An Org mode parser written in Ruby.]]
+ - [[http://v3.bootcss.com/css/#grid][全局 CSS 样式 · Bootstrap v3 中文文档]]
+ - [[https://zilongshanren.com/blog/2015-07-19-add-org-mode-support.html][使用 Org-mode 来写博客 | 子龙山人]]
